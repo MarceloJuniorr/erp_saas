@@ -47,7 +47,7 @@ class Inicio extends Controller
 
     public function index()
     {
-        // Revifica se tem uma sessão ativa
+        // Verifica se tem uma sessão ativa
         if($this->session->get('tipo') == null):
             $this->session->setFlashdata(
                 'alert',
@@ -77,11 +77,18 @@ class Inicio extends Controller
                                 ->where('id_empresa', $this->id_empresa)
                                 ->findAll();
 
-        $vendas = $this->venda_model
-                            ->where('id_empresa', $this->id_empresa)
-                            ->where('data >=', date("Y-m-01"))
-                            ->where('data <=', date("Y-m-t"))
-                            ->findAll(); 
+        $startDate = date("Y-m-01");
+        $endDate = date("Y-m-t");
+
+        if ($this->isValidDate($startDate) && $this->isValidDate($endDate)) {
+            $vendas = $this->venda_model
+                ->where('id_empresa', $this->id_empresa)
+                ->where('data >=', $startDate)
+                ->where('data <=', $endDate)
+                ->findAll();
+        } else {
+            $vendas = [];
+        }
 
         $lancamentos = $this->lancamento_model
                                     ->where('id_empresa', $this->id_empresa)
@@ -108,11 +115,16 @@ class Inicio extends Controller
 
         for ($i = 1; $i <= 31; $i++)
         {
-            $valor = $this->venda_model
-                            ->where('id_empresa', $this->id_empresa)
-                            ->where('data', date("Y-m-$i"))
-                            ->selectSum('valor_a_pagar')
-                            ->first()['valor_a_pagar'];
+            $currentDate = date("Y-m-") . str_pad($i, 2, '0', STR_PAD_LEFT);
+            if ($this->isValidDate($currentDate)) {
+                $valor = $this->venda_model
+                    ->where('id_empresa', $this->id_empresa)
+                    ->where('data', $currentDate)
+                    ->selectSum('valor_a_pagar')
+                    ->first()['valor_a_pagar'];
+            } else {
+                $valor = 0;
+            }
 
             if($valor == null)
             {
@@ -149,12 +161,19 @@ class Inicio extends Controller
         $faturamento_por_meses = [];
         for($i = 1; $i <= 12; $i++)
         {
-            $valor = $this->venda_model
-                            ->where('id_empresa', $this->id_empresa)
-                            ->where('data >=', date("Y-$i-01"))
-                            ->where('data <=', date("Y-$i-t"))
-                            ->selectSum('valor_a_pagar')
-                            ->first();
+            $startDate = date("Y-") . str_pad($i, 2, '0', STR_PAD_LEFT) . "-01";
+            $endDate = date("Y-") . str_pad($i, 2, '0', STR_PAD_LEFT) . "-t";
+
+            if ($this->isValidDate($startDate) && $this->isValidDate($endDate)) {
+                $valor = $this->venda_model
+                    ->where('id_empresa', $this->id_empresa)
+                    ->where('data >=', $startDate)
+                    ->where('data <=', $endDate)
+                    ->selectSum('valor_a_pagar')
+                    ->first();
+            } else {
+                $valor = ['valor_a_pagar' => 0];
+            }
 
             if($valor['valor_a_pagar'] == null)
             {
@@ -202,5 +221,12 @@ class Inicio extends Controller
         echo view('templates/header', $data);
         echo view('dashboard/index');
         echo view('templates/footer');
+    }
+
+    // Método para validar data
+    private function isValidDate($date, $format = 'Y-m-d')
+    {
+        $d = \DateTime::createFromFormat($format, $date);
+        return $d && $d->format($format) === $date;
     }
 }
